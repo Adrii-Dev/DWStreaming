@@ -79,67 +79,75 @@ class PeliculaController extends Controller
     }
 
     //Funcion para añadir peliculas y elenco
-    public function añadirYRedirigir(Request $request){
-        //Validamos la entrada de catalogos
-        $request->validate([
-            'nombre' => 'required',
-            'año' => 'required',
-            'genero' => 'required',
-            'isrc' => 'required',
-            'tipo' => 'required',
-            'director' => 'required',
-            'apellido' => 'required',
-            'dni' => 'required',
-            'nombreActor' => 'required',
-            'apellidoActor' => 'required',
-            'dniActor' => 'required',
-            'tipoActor' => 'required',
-            'video_url' => 'nullable|url'
-        ]);
+    public function añadirYRedirigir(Request $request) {
+        try {
+            $request->validate([
+                'nombre' => 'required|string|max:255',
+                'año' => 'required|integer',
+                'genero' => 'required|string|max:100',
+                'isrc' => 'required|integer',
+                'tipo' => 'required|string|max:255',
+                'director' => 'required|string|max:255',
+                'apellido' => 'required|string|max:255',
+                'dni' => 'required|string|max:20',
+                'video_url' => 'nullable|url',
+                'nombreActor' => 'required|string|max:255',
+                'apellidoActor' => 'required|string|max:255',
+                'dniActor' => 'required|string|max:20',
+                'tipoActor' => 'required|string|max:255'
+            ]);
 
-        $director = Director::firstOrCreate(
-            [
-                'dni' => $request->dni
-            ],
-            [
-                'nombre' => $request->director,
-                'apellido' => $request->apellido
-            ]
-        );
-        $elenco = Elenco::firstOrCreate(
-            [
-                'dni' => $request->dniActor
-            ],
-            [
-                'nombre' => $request->nombreActor,
-                'apellido' => $request->apellidoActor,
-                'tipo' => $request->tipoActor
-            ]
-        );
+            return DB::transaction(function () use ($request) {
+                // Crear o encontrar director
+                $director = Director::firstOrCreate(
+                    ['dni' => $request->dni],
+                    [
+                        'nombre' => $request->director,
+                        'apellido' => $request->apellido
+                    ]
+                );
 
-        $peliNueva = new Pelicula;
-        $peliNueva->nombre = $request->nombre;
-        $peliNueva->año = $request->año;
-        $peliNueva->genero = $request->genero;
-        $peliNueva->director_id = $director->id;
-        $peliNueva->video_url = $request->video_url;
+                // Crear o encontrar actor
+                $elenco = Elenco::firstOrCreate(
+                    ['dni' => $request->dniActor],
+                    [
+                        'nombre' => $request->nombreActor,
+                        'apellido' => $request->apellidoActor,
+                        'tipo' => $request->tipoActor
+                    ]
+                );
 
-        $peliNueva->save();
+                // Crear película
+                $peliNueva = Pelicula::create([
+                    'nombre' => $request->nombre,
+                    'año' => $request->año,
+                    'genero' => $request->genero,
+                    'director_id' => $director->id,
+                    'video_url' => $request->video_url
+                ]);
 
-        $isrcNuevo = new ISRC;
-        $isrcNuevo->isrc = $request->isrc;
-        $isrcNuevo->peli_id = $peliNueva->id;
-        $isrcNuevo->tipo = $request->tipo;
+                // Crear ISRC
+                $isrcNuevo = ISRC::create([
+                    'isrc' => $request->isrc,
+                    'peli_id' => $peliNueva->id,
+                    'tipo' => $request->tipo
+                ]);
 
-        $isrcNuevo->save();
+                // Actualizar película con ISRC
+                $peliNueva->update(['isrc_id' => $isrcNuevo->id]);
 
-        $peliNueva->isrc_id = $isrcNuevo->id;
-        $peliNueva->save();
+                // Asociar elenco con la película
+                $peliNueva->elencos()->attach($elenco->id);
 
-        // Asociar el elenco a la película en la tabla pivote
-        $peliNueva->elencos()->attach($elenco->id);
+                return redirect()->route('catalogo')->with('success', 'Película y elenco añadidos correctamente');
+            });
 
-        return redirect()->route('catalogo');
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al añadir la película',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     //Funcion para mostrar el formulario de añadir elenco
