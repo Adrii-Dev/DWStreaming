@@ -23,8 +23,7 @@ Route::get('directores', [DirectorController::class, 'directores'])->name('direc
 Route::post('añadir', [PeliculaController::class, 'añadir'])->name('añadir')->middleware('auth');
 Route::post('añadirYRedirigir', [PeliculaController::class, 'añadirYRedirigir'])->name('añadirYRedirigir')->middleware('auth');
 Route::get('añadirElenco/{pelicula_id}', [PeliculaController::class, 'mostrarFormularioElenco'])->name('añadirElenco')->middleware('auth');
-//Route::post('añadirElenco/{pelicula_id}', [PeliculaController::class, 'añadirElenco'])->name('guardarElenco');
-Route::delete('borrar/{id}', [PeliculaController::class, 'destroy'])->name('peliculas.destroy');
+
 // Nuevas rutas para la autenticacion
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::post('/register', [AuthController::class, 'register'])->name('register');
