@@ -8,6 +8,7 @@ use App\Models\Director;
 use App\Models\Elenco;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\DB;
 
 class PeliculaController extends Controller
 {
@@ -25,53 +26,59 @@ class PeliculaController extends Controller
     }
 
     //Funcion para añadir peliculas al catalogo
-    public function añadir(Request $request){
-        //Validamos la entrada de catalogos
-        $request->validate([
-            'nombre' => 'required',
-            'año' => 'required',
-            'genero' => 'required',
-            'isrc' => 'required',
-            'tipo' => 'required',
-            'director' => 'required',
-            'apellido' => 'required',
-            'dni' => 'required',
-            'video_url' => 'nullable|url'
-        ]);
+    public function añadir(Request $request) {
+        try {
+            $request->validate([
+                'nombre' => 'required|string|max:255',
+                'año' => 'required|integer',
+                'genero' => 'required|string|max:100',
+                'isrc' => 'required|integer',
+                'tipo' => 'required|string|max:255',
+                'director' => 'required|string|max:255',
+                'apellido' => 'required|string|max:255',
+                'dni' => 'required|string|max:20',
+                'video_url' => 'nullable|url'
+            ]);
 
-        $director = Director::firstOrCreate(
-            [
-                'dni' => $request->dni
-            ],
-            [
-                'nombre' => $request->director,
-                'apellido' => $request->apellido
-            ]
-        );
+            return DB::transaction(function () use ($request) {
+                $director = Director::firstOrCreate(
+                    [
+                        'dni' => $request->dni
+                    ],
+                    [
+                        'nombre' => $request->director,
+                        'apellido' => $request->apellido
+                    ]
+                );
 
-        $peliNueva = new Pelicula;
-        $peliNueva->nombre = $request->nombre;
-        $peliNueva->año = $request->año;
-        $peliNueva->genero = $request->genero;
-        $peliNueva->director_id = $director->id;
-        $peliNueva->video_url = $request->video_url;
+                $peliNueva = Pelicula::create([
+                    'nombre' => $request->nombre,
+                    'año' => $request->año,
+                    'genero' => $request->genero,
+                    'director_id' => $director->id,
+                    'video_url' => $request->video_url
+                ]);
 
-        $peliNueva->save();
+                $isrcNuevo = ISRC::create([
+                    'isrc' => $request->isrc,
+                    'peli_id' => $peliNueva->id,
+                    'tipo' => $request->tipo
+                ]);
 
-        $isrcNuevo = new ISRC;
-        $isrcNuevo->isrc = $request->isrc;
-        $isrcNuevo->peli_id = $peliNueva->id;
-        $isrcNuevo->tipo = $request->tipo;
+                $peliNueva->update(['isrc_id' => $isrcNuevo->id]);
 
-        $isrcNuevo->save();
+                return redirect()->route('catalogo');
+            });
 
-        $peliNueva->isrc_id = $isrcNuevo->id;
-        $peliNueva->save();
-
-        return redirect()->route('catalogo');
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al añadir la película',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
-    //Funcion para añadir peliculas y redirigir a añadir elenco
+    //Funcion para añadir peliculas y elenco
     public function añadirYRedirigir(Request $request){
         //Validamos la entrada de catalogos
         $request->validate([
